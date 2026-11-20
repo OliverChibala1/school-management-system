@@ -36,7 +36,7 @@ npm --prefix backend run build
 npm --prefix frontend run build
 ```
 
-The current automated test covers which staff roles may see the dashboard fee total. Database-backed API integration tests, frontend component tests, and end-to-end workflow tests are not yet implemented.
+The current automated tests cover dashboard fee visibility and teacher-scope role selection. Database-backed API integration tests, frontend component tests, and end-to-end workflow tests are not yet implemented.
 
 ## Run it in VS Code
 
@@ -135,7 +135,7 @@ psql -d school_management_system -f backend/sql/migrations/002_fees.sql
 - Parent portal registration requires the school to create a parent contact record first. The parent's name, email, and phone must match that record when they register.
 - Student sign-in is not implemented. Payroll, transport, and library workflows are also outside the current system.
 - The dashboard still contains sample operational insights. Confirm and replace those with school-approved live metrics before relying on them.
-- Teacher permissions are not yet restricted to assigned classes or subjects. Keep access limited to trusted staff until class-level authorization is implemented.
+- Teachers are restricted to students, classes, subjects, attendance, marks, and reports covered by their class-subject assignments. Administrators and head teachers can manage these links in the in-app **Assignments** section. Add database-backed API tests for these record-level checks before using real student records.
 - This repository has a CI workflow with a focused backend permission test and production builds, but no database-backed API integration tests, frontend component tests, end-to-end tests, or production hosting configuration yet. A successful build is not a production-readiness or privacy certification.
 
 ## Before a real-school deployment

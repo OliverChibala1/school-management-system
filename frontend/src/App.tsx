@@ -106,7 +106,7 @@ function App() {
 
   const nav = user.role === 'parent'
     ? [{ label: 'Parent Portal', icon: LayoutDashboard }, { label: 'Messages', icon: MessageCircle }, { label: 'Announcements', icon: Bell }, { label: 'Calendar', icon: CalendarDays }]
-    : [{ label: 'Dashboard', icon: LayoutDashboard }, { label: 'Students', icon: GraduationCap }, { label: 'Parents', icon: Users }, { label: 'Staff', icon: Users }, { label: 'Classes', icon: BookOpen }, { label: 'Subjects', icon: BookOpen }, { label: 'Attendance', icon: ClipboardCheck }, { label: 'Academic results', icon: Activity }, { label: 'Fees', icon: Banknote }, { label: 'Announcements', icon: Bell }, { label: 'Messages', icon: MessageCircle }, { label: 'Reports', icon: FileText }, { label: 'Calendar', icon: CalendarDays }, { label: 'Settings', icon: Palette }];
+    : [{ label: 'Dashboard', icon: LayoutDashboard }, { label: 'Students', icon: GraduationCap }, { label: 'Parents', icon: Users }, { label: 'Staff', icon: Users }, { label: 'Assignments', icon: ClipboardCheck }, { label: 'Classes', icon: BookOpen }, { label: 'Subjects', icon: BookOpen }, { label: 'Attendance', icon: ClipboardCheck }, { label: 'Academic results', icon: Activity }, { label: 'Fees', icon: Banknote }, { label: 'Announcements', icon: Bell }, { label: 'Messages', icon: MessageCircle }, { label: 'Reports', icon: FileText }, { label: 'Calendar', icon: CalendarDays }, { label: 'Settings', icon: Palette }].filter(item => user.role !== 'teacher' || !['Parents', 'Staff', 'Assignments', 'Fees', 'Settings'].includes(item.label));
 
   const statCards = [ { label: 'Active learners', value: summary?.students ?? '—', delta: 'Enrolled student records', icon: GraduationCap, tone: 'blue' }, { label: 'Staff accounts', value: summary?.staff ?? '—', delta: 'Active school staff', icon: Users, tone: 'purple' }, { label: 'Classes', value: summary?.classes ?? '—', delta: 'Configured classes', icon: BookOpen, tone: 'green' }, { label: 'Guardians', value: summary?.guardians ?? '—', delta: 'Linked guardian records', icon: Users, tone: 'orange' }, { label: 'Attendance today', value: summary?.attendance?.recorded ? `${Math.round(summary.attendance.present / summary.attendance.recorded * 100)}%` : '—', delta: summary?.attendance?.recorded ? `${summary.attendance.present} present · ${summary.attendance.absent} absent` : 'No register recorded yet', icon: ClipboardCheck, tone: 'blue' }, ...(['admin', 'headteacher', 'registrar'].includes(user.role) && summary?.feesOutstanding !== null && summary?.feesOutstanding !== undefined ? [{ label: 'Outstanding fees', value: new Intl.NumberFormat('en-ZM', { style: 'currency', currency: 'ZMW', maximumFractionDigits: 0 }).format(summary.feesOutstanding), delta: 'Current recorded balance', icon: Banknote, tone: 'orange' }] : []) ];
 
@@ -130,7 +130,8 @@ function App() {
   {page === 'Parent Portal' && <ParentPortal token={token} />}
   {page === 'Messages' && <MessagesPage token={token} user={user} initialContactId={selectedContactId} />}
   {page === 'Settings' && <SettingsPage settings={settings} token={token} onSave={saveSettings} />}
-  {!['Dashboard','Students','Settings','Parent Portal','Messages'].includes(page) && <ModulePage page={page} token={token} user={user} onMessage={openMessages} onSaved={async()=>{const s=await request('/dashboard/summary',token);setSummary(s);setNotice('Changes saved successfully.');setTimeout(()=>setNotice(''),3000)}}/>}
+  {page === 'Assignments' && ['admin','headteacher'].includes(user.role) && <TeacherAssignmentsPage token={token} onSaved={async()=>{const s=await request('/dashboard/summary',token);setSummary(s);setNotice('Teacher assignment saved.');setTimeout(()=>setNotice(''),3000)}}/>}
+  {!['Dashboard','Students','Settings','Parent Portal','Messages','Assignments'].includes(page) && <ModulePage page={page} token={token} user={user} onMessage={openMessages} onSaved={async()=>{const s=await request('/dashboard/summary',token);setSummary(s);setNotice('Changes saved successfully.');setTimeout(()=>setNotice(''),3000)}}/>}
   <footer className="footer"><span>© {new Date().getFullYear()} {settings.schoolName}</span><span>Made for clear, reliable school administration <span className="footer-heart">♥</span></span><span className="footer-secure"><ShieldCheck size={14}/> Secure portal</span></footer></div></main>
   {showAdd && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowAdd(false)}}><form className="modal" onSubmit={addStudent}><div className="modal-head"><div><span className="pill">STUDENT RECORDS</span><h2>Register a learner</h2><p>Enter the basic learner details below.</p></div><button type="button" className="icon-btn" onClick={()=>setShowAdd(false)}><X/></button></div><div className="form-grid"><label>Admission number *<input required maxLength={40} value={form.admissionNumber} onChange={e=>setForm({...form,admissionNumber:e.target.value})} placeholder="e.g. TSS-2026-001"/></label><label>First name *<input required value={form.firstName} onChange={e=>setForm({...form,firstName:e.target.value})} placeholder="First name"/></label><label>Last name *<input required value={form.lastName} onChange={e=>setForm({...form,lastName:e.target.value})} placeholder="Last name"/></label><label>Class<select value={form.classId} onChange={e=>setForm({...form,classId:e.target.value})}><option value="">Unassigned</option>{schoolClasses.map(c=><option key={c.id} value={c.id}>{c.name} · {c.academicYear}</option>)}</select></label><label>Guardian name<input value={form.guardianName} onChange={e=>setForm({...form,guardianName:e.target.value})} placeholder="Parent or guardian"/></label><label className="span-two">Guardian phone<input value={form.guardianPhone} onChange={e=>setForm({...form,guardianPhone:e.target.value})} placeholder="e.g. +260 97…"/></label></div><div className="modal-actions"><button type="button" className="secondary-btn" onClick={()=>setShowAdd(false)}>Cancel</button><button className="primary-btn"><Plus size={16}/> Save learner</button></div></form></div>}
   </div>;
@@ -390,6 +391,60 @@ function ModulePage({page,token,user,onSaved,onMessage}:{page:string;token:strin
   </section>
 }
 
+
+function TeacherAssignmentsPage({token,onSaved}:{token:string;onSaved:()=>void}) {
+  const [classes,setClasses]=useState<any[]>([]);
+  const [subjects,setSubjects]=useState<any[]>([]);
+  const [teachers,setTeachers]=useState<any[]>([]);
+  const [assignments,setAssignments]=useState<any[]>([]);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+
+  async function load(){
+    try{
+      const [classData,subjectData,staffData,assignmentData]=await Promise.all([
+        request('/classes',token),request('/subjects',token),request('/staff',token),request('/assignments',token)
+      ]);
+      setClasses(classData.classes||[]);
+      setSubjects(subjectData.subjects||[]);
+      setTeachers((staffData.staff||[]).filter((person:any)=>person.role==='teacher'&&person.isActive));
+      setAssignments(assignmentData.assignments||[]);
+    }catch(err){setError(err instanceof Error?err.message:'Could not load teacher assignments.')}
+  }
+
+  useEffect(()=>{load()},[token]);
+
+  async function submit(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    const form=event.currentTarget;
+    try{
+      const values=Object.fromEntries(new FormData(form).entries());
+      await request('/assignments',token,{method:'POST',body:JSON.stringify(values)});
+      form.reset();
+      await load();
+      onSaved();
+    }catch(err){setError(err instanceof Error?err.message:'Could not save teacher assignment.')}
+    finally{setBusy(false)}
+  }
+
+  return <section className="panel students-panel">
+    <div className="panel-head"><div><h3>Teacher assignments</h3><p>Connect an active teacher to the class and subject they teach.</p></div></div>
+    {error&&<div className="error-banner">{error}</div>}
+    <form className="form-grid module-form" onSubmit={submit}>
+      <label>Class<select name="classId" required defaultValue=""><option value="" disabled>Select class…</option>{classes.map(item=><option key={item.id} value={item.id}>{item.name} · {item.academicYear}</option>)}</select></label>
+      <label>Subject<select name="subjectId" required defaultValue=""><option value="" disabled>Select subject…</option>{subjects.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Teacher<select name="teacherId" required defaultValue=""><option value="" disabled>Select teacher…</option>{teachers.map(item=><option key={item.id} value={item.id}>{item.fullName}</option>)}</select></label>
+      <button className="primary-btn" disabled={busy||!classes.length||!subjects.length||!teachers.length}>{busy?'Saving…':'Save assignment'}</button>
+      {!teachers.length&&<p className="form-help">Create and activate a teacher account in Staff before assigning classes.</p>}
+    </form>
+    <div className="table-wrap"><table><thead><tr><th>CLASS</th><th>SUBJECT</th><th>ASSIGNED TEACHER</th></tr></thead><tbody>
+      {assignments.map(item=><tr key={`${item.classId}-${item.subjectId}`}><td>{item.className}</td><td>{item.subjectName}</td><td>{item.teacherName}</td></tr>)}
+      {!assignments.length&&<tr><td colSpan={3} className="empty-cell">No teacher assignments yet. Assignments determine which learners and subjects teachers can access.</td></tr>}
+    </tbody></table></div>
+  </section>;
+}
 
 const colorThemes = [
   { id: 'forest', name: 'Forest', category: 'Calm · Natural', description: 'A grounded green palette for a focused school workspace.', colors: ['#173d36','#21644f','#d4eadf','#f3f6f3'] },
