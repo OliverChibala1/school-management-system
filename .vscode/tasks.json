@@ -1,0 +1,66 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "School Management System: Run (offline, no npm)",
+      "type": "shell",
+      "command": "python3 standalone/app.py",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "School Management System: Install API dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "School Management System: Install website dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "School Management System: Install all dependencies",
+      "dependsOn": [
+        "School Management System: Install API dependencies",
+        "School Management System: Install website dependencies"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "School Management System: API",
+      "type": "npm",
+      "script": "dev",
+      "path": "backend",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "School Management System: Website",
+      "type": "npm",
+      "script": "dev",
+      "path": "frontend",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "School Management System: Run",
+      "dependsOn": [
+        "School Management System: API",
+        "School Management System: Website"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "School Management System: Create database tables",
+      "type": "shell",
+      "command": "psql -d school_management_system -f backend/sql/schema.sql",
+      "problemMatcher": []
+    }
+  ]
+}
