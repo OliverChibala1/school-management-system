@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { pool } from './db.js';
 import { requireAuth, allowRoles, type AuthRequest } from './auth.js';
+import { canViewDashboardFees } from './dashboard.js';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -245,16 +246,28 @@ app.get('/api/portal/summary', requireAuth, allowRoles('parent'), async (req: Au
   }
 });
 
-app.get('/api/dashboard/summary', requireAuth, staffOnly, async (_req, res) => {
+app.get('/api/dashboard/summary', requireAuth, staffOnly, async (req: AuthRequest, res) => {
   try {
-    const [students, staff, classes, today, fees] = await Promise.all([
+    const [students, staff, classes, guardians, today, nextEvent, fees] = await Promise.all([
       pool.query("SELECT COUNT(*)::int AS count FROM students WHERE status='active'"),
-      pool.query('SELECT COUNT(*)::int AS count FROM app_users WHERE is_active=TRUE'),
+      pool.query("SELECT COUNT(*)::int AS count FROM app_users WHERE is_active=TRUE AND role::text NOT IN ('parent','student')"),
       pool.query('SELECT COUNT(*)::int AS count FROM school_classes'),
+      pool.query('SELECT COUNT(DISTINCT parent_id)::int AS count FROM student_parents'),
       pool.query("SELECT COUNT(*) FILTER (WHERE status='present')::int AS present, COUNT(*) FILTER (WHERE status='absent')::int AS absent, COUNT(*)::int AS recorded FROM attendance_records WHERE attendance_date=CURRENT_DATE"),
-      pool.query('SELECT COALESCE(SUM(balance),0) AS outstanding FROM (SELECT i.amount-COALESCE(SUM(p.amount),0) AS balance FROM fee_invoices i LEFT JOIN fee_payments p ON p.invoice_id=i.id GROUP BY i.id) totals')
+      pool.query('SELECT id,title,starts_at AS "startsAt" FROM school_events WHERE starts_at >= NOW() ORDER BY starts_at LIMIT 1'),
+      canViewDashboardFees(req.user!.role)
+        ? pool.query('SELECT COALESCE(SUM(balance),0) AS outstanding FROM (SELECT i.amount-COALESCE(SUM(p.amount),0) AS balance FROM fee_invoices i LEFT JOIN fee_payments p ON p.invoice_id=i.id GROUP BY i.id) totals')
+        : Promise.resolve({ rows: [{ outstanding: null }] })
     ]);
-    res.json({ students: students.rows[0].count, staff: staff.rows[0].count, classes: classes.rows[0].count, attendance: today.rows[0], feesOutstanding: fees.rows[0].outstanding });
+    res.json({
+      students: students.rows[0].count,
+      staff: staff.rows[0].count,
+      classes: classes.rows[0].count,
+      guardians: guardians.rows[0].count,
+      attendance: today.rows[0],
+      nextEvent: nextEvent.rows[0] || null,
+      feesOutstanding: fees.rows[0].outstanding
+    });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Could not load dashboard summary.' }); }
 });
 
@@ -465,8 +478,8 @@ app.post('/api/parents', requireAuth, allowRoles('admin','headteacher','registra
   const client=await pool.connect();
   try {
     await client.query('BEGIN');
-    const parent=await client.query('INSERT INTO parents(full_name,phone,email,relationship) VALUES($1,$2,$3,$4) ON CONFLICT (email) DO UPDATE SET full_name=EXCLUDED.full_name, phone=EXCLUDED.phone, relationship=EXCLUDED.relationship RETURNING id,full_name AS "fullName",phone,email,relationship',[parsed.data.fullName,parsed.data.phone,parsed.data.email||null,parsed.data.relationship]);
-    for (const studentId of parsed.data.studentIds) await client.query('INSERT INTO student_parents(student_id,parent_id) VALUES($1,$2)',[studentId,parent.rows[0].id]);
+    const parent=await client.query('INSERT INTO parents(full_name,phone,email,relationship) VALUES($1,$2,$3,$4) ON CONFLICT (email) WHERE email IS NOT NULL DO UPDATE SET full_name=EXCLUDED.full_name, phone=EXCLUDED.phone, relationship=EXCLUDED.relationship RETURNING id,full_name AS "fullName",phone,email,relationship',[parsed.data.fullName,parsed.data.phone,parsed.data.email||null,parsed.data.relationship]);
+    for (const studentId of parsed.data.studentIds) await client.query('INSERT INTO student_parents(student_id,parent_id) VALUES($1,$2) ON CONFLICT (student_id,parent_id) DO NOTHING',[studentId,parent.rows[0].id]);
     if (parsed.data.email && parsed.data.password) {
       const hash = await bcrypt.hash(parsed.data.password, 12);
       await client.query(

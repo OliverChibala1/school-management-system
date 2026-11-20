@@ -26,6 +26,18 @@ In VS Code you can run **Terminal → Run Task → School Management System: Run
 - Database: PostgreSQL
 - Login: JWT sessions and bcrypt password hashing
 
+## Automated checks
+
+GitHub Actions runs on pull requests targeting `main`, pushes to `main`, and manual dispatches. It runs the backend role-permission test and backend/frontend production builds. Run the same checks locally with:
+
+```bash
+npm --prefix backend test
+npm --prefix backend run build
+npm --prefix frontend run build
+```
+
+The current automated test covers which staff roles may see the dashboard fee total. Database-backed API integration tests, frontend component tests, and end-to-end workflow tests are not yet implemented.
+
 ## Run it in VS Code
 
 ### 1. Install requirements
@@ -124,7 +136,7 @@ psql -d school_management_system -f backend/sql/migrations/002_fees.sql
 - Student sign-in is not implemented. Payroll, transport, and library workflows are also outside the current system.
 - The dashboard still contains sample operational insights. Confirm and replace those with school-approved live metrics before relying on them.
 - Teacher permissions are not yet restricted to assigned classes or subjects. Keep access limited to trusted staff until class-level authorization is implemented.
-- This repository has no production hosting configuration, automated test suite, or CI workflow yet. A successful build is not a production-readiness or privacy certification.
+- This repository has a CI workflow with a focused backend permission test and production builds, but no database-backed API integration tests, frontend component tests, end-to-end tests, or production hosting configuration yet. A successful build is not a production-readiness or privacy certification.
 
 ## Before a real-school deployment
 
