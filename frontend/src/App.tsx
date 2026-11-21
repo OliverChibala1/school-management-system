@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   accentColor: '#21644f',
   logoUrl: ''
 };
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const API = import.meta.env.VITE_API_URL || 'https://school-management-api.onrender.com/api';
 
 async function request(path: string, token: string, init: RequestInit = {}) {
   const response = await fetch(`${API}${path}`, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(init.headers || {}) } });

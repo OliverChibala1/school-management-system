@@ -23,27 +23,10 @@ services:
       - key: JWT_EXPIRES_IN
         value: 8h
       - key: FRONTEND_ORIGIN
-        value: https://school-management-web.onrender.com
+        value: https://oliverchibala1.github.io
       - key: ADMIN_NAME
         value: School Administrator
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-
-  - type: web
-    name: school-management-web
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          name: school-management-api
-          type: web
-          property: host

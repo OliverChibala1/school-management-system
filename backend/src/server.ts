@@ -17,7 +17,17 @@ const staffOnly = allowRoles('admin', 'headteacher', 'registrar', 'teacher');
 const staffAndParents = allowRoles('admin', 'headteacher', 'registrar', 'teacher', 'parent');
 app.disable('x-powered-by');
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173' }));
+const allowedOrigins = new Set([
+  'http://localhost:5173',
+  'https://oliverchibala1.github.io',
+  ...(process.env.FRONTEND_ORIGIN ? process.env.FRONTEND_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean) : [])
+]);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('Origin not allowed'));
+  }
+}));
 app.use(express.json({ limit: '200kb' }));
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
 
@@ -593,7 +603,18 @@ async function startServer() {
     CREATE INDEX IF NOT EXISTS direct_messages_thread_idx ON direct_messages(sender_id, recipient_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS direct_messages_recipient_unread_idx ON direct_messages(recipient_id, read_at) WHERE read_at IS NULL;
   `);
+  await synchronizeHostedAdministrator();
   app.listen(port, () => console.log(`School Management System API listening on http://localhost:${port}`));
+}
+
+async function synchronizeHostedAdministrator() {
+  const name = process.env.ADMIN_NAME?.trim();
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || '';
+  if (!name || !email || password.length < 14) return;
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) return;
+  const passwordHash = await bcrypt.hash(password, 12);
+  await pool.query(`INSERT INTO app_users(full_name,email,password_hash,role,is_active) VALUES($1,$2,$3,'admin',TRUE) ON CONFLICT(email) DO UPDATE SET full_name=EXCLUDED.full_name,password_hash=EXCLUDED.password_hash,role='admin',is_active=TRUE,updated_at=NOW()`, [name, email, passwordHash]);
 }
 
 startServer().catch((err) => {
